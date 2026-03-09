@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spin the Wheel App - Multi-List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .wheel-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1;
+            margin: 0 auto;
+            filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1));
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 50%;
+        }
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        /* Modal Transitions */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
+        .modal-leave { opacity: 1; transform: scale(1); }
+        .modal-leave-active { opacity: 0; transform: scale(0.95); transition: all 0.15s ease-in; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen font-sans text-slate-800 selection:bg-indigo-200 pb-10">
+
+    <div class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-indigo-600 tracking-tight mb-2">Decision Wheel</h1>
+            <p class="text-slate-500 text-lg">Create lists, add options, and let fate decide!</p>
+        </header>
+
+        <div class="flex flex-col md:flex-row gap-12 items-center md:items-start justify-center">
+            
+            <!-- Left Side: The Wheel -->
+            <div class="flex-1 w-full max-w-lg flex flex-col items-center">
+                <div class="wheel-container">
+                    <!-- SVG Pointer -->
+                    <svg class="pointer w-12 h-12 text-slate-800" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 22H22L12 2Z" />
+                    </svg>
+                    
+                    <canvas id="wheelCanvas" width="800" height="800"></canvas>
+                </div>
+
+                <button id="spinBtn" class="mt-10 px-10 py-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-95 text-white font-bold text-2xl rounded-full shadow-lg transition-all duration-200 w-full max-w-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    SPIN THE WHEEL
+                </button>
+
+                <div id="resultContainer" class="mt-8 h-20 flex items-center justify-center text-center">
+                    <div id="resultText" class="text-3xl font-bold text-indigo-700 opacity-0 transition-opacity duration-300"></div>
+                </div>
+            </div>
+
+            <!-- Right Side: Controls -->
+            <div class="flex-1 w-full max-w-md bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                
+                <!-- List Management Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold">Your Lists</h2>
+                    <div id="saveStatus" class="text-xs text-slate-400 font-medium flex items-center gap-1 opacity-0 transition-opacity duration-300">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Saved locally
+                    </div>
+                </div>
+
+                <!-- List Selector and Actions -->
+                <div class="flex items-center gap-2 mb-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    <select id="listSelector" class="flex-1 bg-transparent font-medium text-slate-700 py-2 px-1 outline-none cursor-pointer truncate"></select>
+                    
+                    <button id="newListBtn" title="Create New List" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>
+                    <button id="renameListBtn" title="Rename List" class="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    </button>
+                    <button id="deleteListBtn" title="Delete List" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+                
+                <div class="flex items-center justify-between mb-2">
+                    <p class="text-sm text-slate-500">Edit options (one per line):</p>
+                    <span id="optionCount" class="bg-indigo-100 text-indigo-700 text-xs py-1 px-2 rounded-full font-bold">0</span>
+                </div>
+                
+                <textarea id="optionsInput" class="w-full h-72 p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none text-lg leading-relaxed shadow-inner" placeholder="Enter options here..."></textarea>
+                
+                <div class="mt-4 flex gap-2">
+                    <button id="shuffleBtn" class="flex-1 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors border border-slate-300">
+                        Shuffle
+                    </button>
+                    <button id="clearBtn" class="py-2 px-4 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-lg transition-colors border border-red-200">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Custom Modal UI Overlay -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex-items-center justify-center z-50 opacity-0 transition-opacity duration-200" style="display: none;">
+        <div id="modalContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 transform scale-95 transition-transform duration-200 mt-20">
+            <h3 id="modalTitle" class="text-xl font-bold text-slate-800 mb-2"></h3>
+            <p id="modalMessage" class="text-slate-600 mb-4 text-sm hidden"></p>
+            <input type="text" id="modalInput" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 mb-6 hidden" placeholder="Enter here...">
+            <div class="flex justify-end gap-3">
+                <button id="modalCancel" class="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+                <button id="modalConfirm" class="px-4 py-2 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors shadow-md">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+        const optionsInput = document.getElementById('optionsInput');
+        const optionCount = document.getElementById('optionCount');
+        const resultText = document.getElementById('resultText');
+        
+        // Controls
+        const listSelector = document.getElementById('listSelector');
+        const newListBtn = document.getElementById('newListBtn');
+        const renameListBtn = document.getElementById('renameListBtn');
+        const deleteListBtn = document.getElementById('deleteListBtn');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const saveStatus = document.getElementById('saveStatus');
+
+        // --- App State & Local Storage Key ---
+        const STORAGE_KEY = 'decisionWheelAppData';
+        
+        let appData = {
+            activeListId: 'default',
+            lists: {
+                'default': {
+                    name: "Dinner Options",
+                    options: ["Pizza", "Burgers", "Sushi", "Tacos", "Salad", "Pasta"]
+                }
+            }
+        };
+        
+        // Wheel physics variables
+        let currentAngle = 0;
+        let startAngle = 0;
+        let targetAngle = 0;
+        let animationStartTime = 0;
+        const spinDuration = 4500;
+        let isSpinning = false;
+        let saveTimeout = null;
+
+        const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#6366f1'];
+
+        // --- Custom Modal Logic ---
+        const modal = {
+            overlay: document.getElementById('customModal'),
+            content: document.getElementById('modalContent'),
+            title: document.getElementById('modalTitle'),
+            msg: document.getElementById('modalMessage'),
+            input: document.getElementById('modalInput'),
+            btnCancel: document.getElementById('modalCancel'),
+            btnConfirm: document.getElementById('modalConfirm'),
+            
+            show(config) {
+                return new Promise((resolve) => {
+                    this.title.textContent = config.title;
+                    
+                    if (config.message) {
+                        this.msg.textContent = config.message;
+                        this.msg.classList.remove('hidden');
+                    } else {
+                        this.msg.classList.add('hidden');
+                    }
+
+                    if (config.type === 'prompt') {
+                        this.input.value = config.defaultValue || '';
+                        this.input.classList.remove('hidden');
+                        setTimeout(() => this.input.focus(), 100);
+                    } else {
+                        this.input.classList.add('hidden');
+                    }
+
+                    this.btnConfirm.textContent = config.confirmText || 'OK';
+                    
+                    if (config.danger) {
+                        this.btnConfirm.classList.replace('bg-indigo-600', 'bg-red-600');
+                        this.btnConfirm.classList.replace('hover:bg-indigo-700', 'hover:bg-red-700');
+                    } else {
+                        this.btnConfirm.classList.replace('bg-red-600', 'bg-indigo-600');
+                        this.btnConfirm.classList.replace('hover:bg-red-700', 'hover:bg-indigo-700');
+                    }
+
+                    // Show
+                    this.overlay.style.display = 'flex';
+                    // Trigger reflow for animation
+                    void this.overlay.offsetWidth;
+                    this.overlay.classList.replace('opacity-0', 'opacity-100');
+                    this.content.classList.replace('scale-95', 'scale-100');
+
+                    const cleanup = () => {
+                        this.btnConfirm.onclick = null;
+                        this.btnCancel.onclick = null;
+                        this.input.onkeydown = null;
+                        
+                        this.overlay.classList.replace('opacity-100', 'opacity-0');
+                        this.content.classList.replace('scale-100', 'scale-95');
+                        setTimeout(() => { this.overlay.style.display = 'none'; }, 200);
+                    };
+
+                    this.btnConfirm.onclick = () => {
+                        cleanup();
+                        resolve(config.type === 'prompt' ? this.input.value.trim() : true);
+                    };
+
+                    this.btnCancel.onclick = () => {
+                        cleanup();
+                        resolve(null);
+                    };
+
+                    if (config.type === 'prompt') {
+                        this.input.onkeydown = (e) => {
+                            if (e.key === 'Enter') this.btnConfirm.click();
+                            if (e.key === 'Escape') this.btnCancel.click();
+                        };
+                    }
+                });
+            }
+        };
+
+        // --- Initialization ---
+        function init() {
+            loadData();
+            renderListUI();
+            
+            // Textarea events
+            optionsInput.addEventListener('input', () => {
+                const lines = optionsInput.value.split('\n');
+                appData.lists[appData.activeListId].options = lines.map(l => l.trim()).filter(l => l.length > 0);
+                updateWheelUI();
+                scheduleSave();
+            });
+
+            // List Controls
+            listSelector.addEventListener('change', (e) => {
+                appData.activeListId = e.target.value;
+                renderListUI();
+                saveDataImmediate();
+            });
+
+            newListBtn.addEventListener('click', async () => {
+                const name = await modal.show({ type: 'prompt', title: 'New List Name', defaultValue: 'My New List' });
+                if (name) {
+                    const id = 'list_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+                    appData.lists[id] = { name: name, options: ["Option 1", "Option 2"] };
+                    appData.activeListId = id;
+                    renderListUI();
+                    saveDataImmediate();
+                }
+            });
+
+            renameListBtn.addEventListener('click', async () => {
+                const currentName = appData.lists[appData.activeListId].name;
+                const newName = await modal.show({ type: 'prompt', title: 'Rename List', defaultValue: currentName });
+                if (newName && newName !== currentName) {
+                    appData.lists[appData.activeListId].name = newName;
+                    renderListUI();
+                    saveDataImmediate();
+                }
+            });
+
+            deleteListBtn.addEventListener('click', async () => {
+                const listCount = Object.keys(appData.lists).length;
+                if (listCount <= 1) {
+                    await modal.show({ type: 'alert', title: 'Cannot Delete', message: 'You must have at least one list.' });
+                    return;
+                }
+                
+                const confirm = await modal.show({ type: 'confirm', title: 'Delete List?', message: 'Are you sure you want to delete this list? This cannot be undone.', danger: true, confirmText: 'Delete' });
+                if (confirm) {
+                    delete appData.lists[appData.activeListId];
+                    // Set active to the first available
+                    appData.activeListId = Object.keys(appData.lists)[0];
+                    renderListUI();
+                    saveDataImmediate();
+                }
+            });
+
+            // Wheel Controls
+            spinBtn.addEventListener('click', startSpin);
+            shuffleBtn.addEventListener('click', () => {
+                if (isSpinning) return;
+                let activeList = appData.lists[appData.activeListId].options;
+                for (let i = activeList.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [activeList[i], activeList[j]] = [activeList[j], activeList[i]];
+                }
+                renderListUI();
+                saveDataImmediate();
+            });
+            clearBtn.addEventListener('click', async () => {
+                const confirm = await modal.show({ type: 'confirm', title: 'Clear Options?', message: 'Remove all items from this list?', danger: true, confirmText: 'Clear' });
+                if (confirm) {
+                    appData.lists[appData.activeListId].options = [];
+                    renderListUI();
+                    saveDataImmediate();
+                }
+            });
+
+            window.addEventListener('resize', drawWheel);
+        }
+
+        // --- Local Storage Logic ---
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    // Basic validation to ensure data integrity
+                    if (parsed && parsed.lists && Object.keys(parsed.lists).length > 0) {
+                        appData = parsed;
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading data from local storage", e);
+            }
+        }
+
+        function flashSaveStatus() {
+            saveStatus.style.opacity = '1';
+            setTimeout(() => {
+                saveStatus.style.opacity = '0';
+            }, 1500);
+        }
+
+        function scheduleSave() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveDataImmediate();
+            }, 500); // 500ms debounce
+        }
+
+        function saveDataImmediate() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                flashSaveStatus();
+            } catch (e) {
+                console.error("Error saving data to local storage", e);
+                alert("Storage is full or unavailable in this browser.");
+            }
+        }
+
+        // --- UI Rendering ---
+        function renderListUI() {
+            // Update Dropdown
+            listSelector.innerHTML = '';
+            for (const [id, list] of Object.entries(appData.lists)) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = list.name;
+                if (id === appData.activeListId) option.selected = true;
+                listSelector.appendChild(option);
+            }
+
+            // Update Textarea (join array with newlines)
+            const activeOptions = appData.lists[appData.activeListId].options || [];
+            
+            // Only update textarea if it's different to preserve cursor position during typing
+            const currentText = optionsInput.value;
+            const newText = activeOptions.join('\n');
+            if (currentText !== newText) {
+                optionsInput.value = newText;
+            }
+
+            updateWheelUI();
+        }
+
+        function updateWheelUI() {
+            const activeList = appData.lists[appData.activeListId].options || [];
+            optionCount.textContent = activeList.length;
+            
+            spinBtn.disabled = activeList.length < 2 || isSpinning;
+            drawWheel();
+        }
+
+        // --- Canvas Rendering ---
+        function drawWheel() {
+            const activeList = appData.lists[appData.activeListId].options || [];
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 10;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (activeList.length === 0) {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = '#e2e8f0'; 
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.stroke();
+                
+                ctx.fillStyle = '#64748b';
+                ctx.font = 'bold 30px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('List is empty', centerX, centerY - 20);
+                ctx.font = '18px sans-serif';
+                ctx.fillText('Add items to spin', centerX, centerY + 20);
+                return;
+            }
+
+            const arc = (2 * Math.PI) / activeList.length;
+
+            for (let i = 0; i < activeList.length; i++) {
+                const angle = currentAngle + i * arc;
+                
+                let colorIndex = i % colors.length;
+                if (i === activeList.length - 1 && activeList.length % colors.length === 1 && activeList.length > 1) {
+                    colorIndex = 1; 
+                }
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, angle, angle + arc);
+                ctx.fillStyle = colors[colorIndex];
+                ctx.fill();
+                
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = 'white';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + arc / 2);
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#ffffff';
+                
+                const fontSize = Math.max(16, Math.min(42, (radius * 1.5) / activeList.length));
+                ctx.font = `bold ${fontSize}px sans-serif`;
+                
+                ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 1;
+                ctx.shadowOffsetY = 1;
+                
+                const text = activeList[i];
+                const maxWidth = radius - 60;
+                ctx.fillText(text, radius - 30, 0, maxWidth);
+                ctx.restore();
+            }
+
+            // Center Cap
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 35, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = '#1e293b'; 
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+        }
+
+        // --- Animation Logic ---
+        function easeOutQuart(x) {
+            return 1 - Math.pow(1 - x, 4);
+        }
+
+        function animateSpin(time) {
+            if (!animationStartTime) animationStartTime = time;
+            const elapsed = time - animationStartTime;
+            const progress = Math.min(elapsed / spinDuration, 1);
+            
+            const ease = easeOutQuart(progress);
+            currentAngle = startAngle + (targetAngle - startAngle) * ease;
+            drawWheel();
+
+            if (progress < 1) {
+                requestAnimationFrame(animateSpin);
+            } else {
+                finishSpin();
+            }
+        }
+
+        function startSpin() {
+            const activeList = appData.lists[appData.activeListId].options;
+            if (isSpinning || activeList.length < 2) return;
+            
+            isSpinning = true;
+            spinBtn.disabled = true;
+            optionsInput.disabled = true;
+            listSelector.disabled = true;
+            
+            resultText.style.opacity = '0';
+            resultText.classList.remove('pop-in');
+            
+            startAngle = currentAngle;
+            const extraSpins = 5 + Math.random() * 5; 
+            targetAngle = startAngle + (extraSpins * Math.PI * 2);
+            
+            animationStartTime = 0;
+            requestAnimationFrame(animateSpin);
+        }
+
+        function finishSpin() {
+            isSpinning = false;
+            spinBtn.disabled = false;
+            optionsInput.disabled = false;
+            listSelector.disabled = false;
+            determineWinner();
+        }
+
+        function determineWinner() {
+            const activeList = appData.lists[appData.activeListId].options;
+            const pointerAngle = 3 * Math.PI / 2;
+            const arc = (2 * Math.PI) / activeList.length;
+            const normalizedRotation = currentAngle % (2 * Math.PI);
+            const relativeAngle = (pointerAngle - normalizedRotation + 2 * Math.PI) % (2 * Math.PI);
+            
+            const winningIndex = Math.floor(relativeAngle / arc);
+            const winner = activeList[winningIndex];
+            
+            resultText.textContent = `🎉 ${winner} 🎉`;
+            resultText.style.opacity = '1';
+            resultText.classList.add('pop-in');
+        }
+
+        // Boot
+        init();
+    </script>
+</body>
+</html>
+
+
