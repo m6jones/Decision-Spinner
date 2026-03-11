@@ -75,7 +75,7 @@
         let hue = 0;
         let points = [];
         const maxPoints = 1500;
-        const fadeSpeed = 0.015;
+        const fadeSpeed = 0.005; // Slower fade for a longer trail
 
         // Resize logic
         function resize() {
@@ -173,8 +173,34 @@
         }, 8000);
 
         // Main animation loop
+        function drawGuide() {
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const a = 0;
+            const b = Math.min(width, height) * 0.015; // Scale with screen
+            const rotations = 6;
+            
+            ctx.beginPath();
+            ctx.setLineDash([5, 15]); // Dotted line
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.15)'; // Very faint indigo
+            
+            for (let theta = 0; theta < Math.PI * 2 * rotations; theta += 0.1) {
+                const r = a + b * theta;
+                const x = centerX + r * Math.cos(theta);
+                const y = centerY + r * Math.sin(theta);
+                
+                if (theta === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dash
+        }
+
         function animate() {
             ctx.clearRect(0, 0, width, height);
+            
+            drawGuide();
 
             // Draw and fade points
             for (let i = 0; i < points.length; i++) {
