@@ -15,13 +15,10 @@
         canvas {
             display: block;
             touch-action: none;
-        }
-        .fade-in {
-            animation: fadeIn 2s ease-in forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 0;
         }
         .breathe {
             animation: breathe 8s ease-in-out infinite;
@@ -29,15 +26,6 @@
         @keyframes breathe {
             0%, 100% { transform: scale(1); opacity: 0.3; }
             50% { transform: scale(1.1); opacity: 0.6; }
-        }
-        .instruction-fade {
-            animation: instruction 10s ease-in-out infinite;
-        }
-        @keyframes instruction {
-            0%, 100%, 10% { opacity: 0; content: "Breathe in..."; }
-            20%, 45% { opacity: 0.8; }
-            50% { opacity: 0; }
-            60%, 85% { opacity: 0.8; }
         }
     </style>
 </head>
@@ -74,10 +62,9 @@
         let lastY = 0;
         let hue = 0;
         let points = [];
-        const maxPoints = 1500;
-        const fadeSpeed = 0.005; // Slower fade for a longer trail
+        const maxPoints = 3000;
+        const fadeSpeed = 0.005;
 
-        // Resize logic
         function resize() {
             width = window.innerWidth;
             height = window.innerHeight;
@@ -91,14 +78,21 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // Interaction
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
         function startDrawing(e) {
             isDrawing = true;
             const pos = getPos(e);
             lastX = pos.x;
             lastY = pos.y;
-            
-            // Hide instruction on first touch
             instruction.style.opacity = '0';
         }
 
@@ -109,11 +103,9 @@
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
-            
             const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
             if (dist < 2) return;
 
-            // Update hue based on movement
             hue = (hue + dist * 0.5) % 360;
 
             const point = {
@@ -123,7 +115,7 @@
                 y2: pos.y,
                 color: `hsla(${hue}, 80%, 60%, 1)`,
                 opacity: 1,
-                width: Math.max(2, 20 - (dist * 0.2)) // Thinner if moving fast
+                width: 18
             };
 
             points.push(point);
@@ -131,16 +123,6 @@
 
             lastX = pos.x;
             lastY = pos.y;
-        }
-
-        function getPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: rect.top + clientY
-            };
         }
 
         canvas.addEventListener('mousedown', startDrawing);
@@ -157,7 +139,6 @@
         }, { passive: false });
         window.addEventListener('touchend', stopDrawing);
 
-        // Breathing text logic
         const breathingPhrases = ["Breathe in...", "Hold...", "Breathe out...", "Pause..."];
         let phraseIndex = 0;
         
@@ -172,47 +153,40 @@
             }
         }, 8000);
 
-        // Main animation loop
         function drawGuide() {
             const centerX = width / 2;
             const centerY = height / 2;
             const a = 0;
-            const b = Math.min(width, height) * 0.015; // Scale with screen
+            const b = Math.min(width, height) * 0.015;
             const rotations = 6;
             
             ctx.beginPath();
-            ctx.setLineDash([5, 15]); // Dotted line
+            ctx.setLineDash([5, 15]);
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(129, 140, 248, 0.15)'; // Very faint indigo
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.15)';
             
             for (let theta = 0; theta < Math.PI * 2 * rotations; theta += 0.1) {
                 const r = a + b * theta;
                 const x = centerX + r * Math.cos(theta);
                 const y = centerY + r * Math.sin(theta);
-                
                 if (theta === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
             ctx.stroke();
-            ctx.setLineDash([]); // Reset dash
+            ctx.setLineDash([]);
         }
 
         function animate() {
             ctx.clearRect(0, 0, width, height);
-            
             drawGuide();
-
-            // Draw and fade points
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
                 p.opacity -= fadeSpeed;
-
                 if (p.opacity <= 0) {
                     points.splice(i, 1);
                     i--;
                     continue;
                 }
-
                 ctx.beginPath();
                 ctx.moveTo(p.x1, p.y1);
                 ctx.lineTo(p.x2, p.y2);
@@ -223,7 +197,6 @@
                 ctx.shadowColor = p.color;
                 ctx.stroke();
             }
-
             requestAnimationFrame(animate);
         }
 
