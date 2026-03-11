@@ -51,13 +51,20 @@
             border-radius: 10px;
         }
 
-        /* Mobile Sidebar Toggle */
+        /* Collapsible Sidebar */
         #sidebar {
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
         }
-        @media (max-width: 768px) {
-            #sidebar.hidden-mobile {
-                transform: translateX(-110%);
+        
+        #sidebar.collapsed {
+            transform: translateX(-110%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @media (min-width: 768px) {
+            #sidebar.collapsed {
+                transform: translateX(-100%) translateX(-2rem);
             }
         }
     </style>
@@ -68,27 +75,24 @@
         <canvas id="plinko-canvas"></canvas>
 
         <!-- UI Overlay -->
-        <div id="ui-overlay" class="absolute inset-0 flex flex-col md:flex-row p-4 md:p-8 justify-between pointer-events-none">
+        <div id="ui-overlay" class="absolute inset-0 flex p-4 md:p-8 justify-between pointer-events-none">
             
-            <!-- Mobile Menu Toggle -->
+            <!-- Universal Toggle Button -->
             <button 
                 id="menu-toggle"
-                class="md:hidden fixed top-4 left-4 z-50 p-3 glass rounded-2xl flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-indigo-300"
+                class="fixed top-4 left-4 z-50 p-3 glass rounded-2xl flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-indigo-300 transition-all active:scale-95"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-                Options
+                <span id="toggle-text">Options</span>
             </button>
 
             <!-- Sidebar: Controls -->
-            <div id="sidebar" class="fixed md:relative top-0 left-0 h-full md:h-fit w-[85vw] md:w-80 glass md:rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl z-40 hidden-mobile md:transform-none">
-                <div class="flex justify-between items-start">
+            <div id="sidebar" class="fixed top-0 left-0 h-full w-[85vw] md:w-80 glass p-6 md:p-8 flex flex-col gap-6 shadow-2xl z-40 collapsed">
+                <div class="flex justify-between items-start mt-12 md:mt-0">
                     <div>
                         <h1 class="text-2xl font-extralight tracking-widest uppercase mb-1 neon-glow">Zen Plinko</h1>
                         <p class="text-[10px] text-slate-400 font-light uppercase tracking-wider">The Decision Dropper</p>
                     </div>
-                    <button id="close-menu" class="md:hidden p-2 text-slate-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
                 </div>
 
                 <div class="flex flex-col gap-2">
@@ -125,8 +129,8 @@ Journal</textarea>
                 </div>
             </div>
 
-            <!-- Right: Winner Announcement -->
-            <div id="winner-announcement" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 md:relative md:top-0 md:left-0 md:translate-x-0 md:translate-y-0 glass rounded-3xl p-8 w-[90vw] md:w-96 h-fit opacity-0 scale-95 transition-all duration-700 pointer-events-none self-center text-center z-30">
+            <!-- Winner Announcement (Centered always) -->
+            <div id="winner-announcement" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass rounded-3xl p-8 w-[90vw] md:w-96 h-fit opacity-0 scale-95 transition-all duration-700 pointer-events-none text-center z-30">
                 <p class="text-xs uppercase tracking-[0.3em] text-indigo-400 mb-2">Fate has decided</p>
                 <h2 id="winner-text" class="text-3xl md:text-4xl font-light text-white mb-6 leading-tight">...</h2>
                 <button 
@@ -145,7 +149,7 @@ Journal</textarea>
         // Constants
         const PENTATONIC = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
         const MARBLE_RADIUS = 10;
-        const PEG_RADIUS = 3.5;
+        const PEG_RADIUS = 4;
         const WALL_THICKNESS = 100;
 
         class ZenPlinko {
@@ -156,7 +160,7 @@ Journal</textarea>
                 this.dropBtn = document.getElementById('drop-btn');
                 this.sidebar = document.getElementById('sidebar');
                 this.menuToggle = document.getElementById('menu-toggle');
-                this.closeMenu = document.getElementById('close-menu');
+                this.toggleText = document.getElementById('toggle-text');
                 this.winnerAnnouncement = document.getElementById('winner-announcement');
                 this.winnerText = document.getElementById('winner-text');
                 this.resetBtn = document.getElementById('reset-btn');
@@ -211,11 +215,13 @@ Journal</textarea>
                 
                 this.dropBtn.addEventListener('click', () => {
                     this.dropMarble();
-                    if (window.innerWidth <= 768) this.toggleSidebar(false);
+                    this.toggleSidebar(false);
                 });
 
-                this.menuToggle.addEventListener('click', () => this.toggleSidebar(true));
-                this.closeMenu.addEventListener('click', () => this.toggleSidebar(false));
+                this.menuToggle.addEventListener('click', () => {
+                    const isCollapsed = this.sidebar.classList.contains('collapsed');
+                    this.toggleSidebar(isCollapsed);
+                });
                 
                 this.optionsInput.addEventListener('input', () => {
                     this.updateOptions();
@@ -225,6 +231,7 @@ Journal</textarea>
                 this.resetBtn.addEventListener('click', () => {
                     this.winnerAnnouncement.style.opacity = '0';
                     this.winnerAnnouncement.style.transform = 'translate(-50%, -50%) scale(0.95)';
+                    this.winnerAnnouncement.style.pointerEvents = 'none';
                 });
 
                 Events.on(this.engine, 'collisionStart', (event) => {
@@ -258,8 +265,13 @@ Journal</textarea>
             }
 
             toggleSidebar(show) {
-                if (show) this.sidebar.classList.remove('hidden-mobile');
-                else this.sidebar.classList.add('hidden-mobile');
+                if (show) {
+                    this.sidebar.classList.remove('collapsed');
+                    this.toggleText.innerText = 'Close';
+                } else {
+                    this.sidebar.classList.add('collapsed');
+                    this.toggleText.innerText = 'Options';
+                }
             }
 
             updateOptions() {
@@ -285,26 +297,26 @@ Journal</textarea>
                 this.walls = [];
                 this.sensors = [];
 
-                const isMobile = window.innerWidth <= 768;
                 const width = this.canvas.width;
                 const height = this.canvas.height;
+                const isMobile = width < 768;
                 
-                const sidebarWidth = isMobile ? 0 : 320;
-                const playableWidth = width - sidebarWidth;
-                const startX = sidebarWidth;
+                // Playable area is full screen now
+                const playableWidth = width;
+                const startX = 0;
 
-                // Dynamic Grid based on width
-                const cols = isMobile ? 7 : 11;
-                const rows = isMobile ? 7 : 9;
+                // Dynamic Grid
+                const cols = isMobile ? 8 : 12;
+                const rows = isMobile ? 8 : 10;
                 const spacingX = playableWidth / (cols + 1);
-                const spacingY = (height * 0.55) / rows;
+                const spacingY = (height * 0.6) / rows;
 
                 for (let r = 0; r < rows; r++) {
                     const rowOffset = r % 2 === 0 ? spacingX / 2 : 0;
                     const rowCols = r % 2 === 0 ? cols : cols + 1;
                     for (let c = 0; c < rowCols; c++) {
                         const x = startX + rowOffset + (c + (r % 2 === 0 ? 0.5 : 0)) * spacingX;
-                        const y = 120 + r * spacingY;
+                        const y = 100 + r * spacingY;
                         
                         const peg = Bodies.circle(x, y, PEG_RADIUS, {
                             isStatic: true,
@@ -317,7 +329,7 @@ Journal</textarea>
                 }
 
                 // Walls
-                const leftWall = Bodies.rectangle(startX - WALL_THICKNESS/2, height/2, WALL_THICKNESS, height, { isStatic: true });
+                const leftWall = Bodies.rectangle(-WALL_THICKNESS/2, height/2, WALL_THICKNESS, height, { isStatic: true });
                 const rightWall = Bodies.rectangle(width + WALL_THICKNESS/2, height/2, WALL_THICKNESS, height, { isStatic: true });
                 this.walls.push(leftWall, rightWall);
 
@@ -347,16 +359,18 @@ Journal</textarea>
             dropMarble() {
                 if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
-                const isMobile = window.innerWidth <= 768;
-                const sidebarWidth = isMobile ? 0 : 320;
-                const playableWidth = this.canvas.width - sidebarWidth;
-                const startX = sidebarWidth;
-                
-                const x = startX + (Math.random() * 0.6 + 0.2) * playableWidth;
-                const y = -20;
+                const playableWidth = this.canvas.width;
+                // Ensure spawn is within bounds and hits pegs
+                const x = (Math.random() * 0.5 + 0.25) * playableWidth;
+                const y = -30;
 
                 const marble = Bodies.circle(x, y, MARBLE_RADIUS, {
-                    restitution: 0.5, friction: 0.001, label: 'marble'
+                    restitution: 0.6, 
+                    friction: 0.001, 
+                    label: 'marble',
+                    collisionFilter: {
+                        category: 0x0001
+                    }
                 });
                 marble.trail = [];
                 marble.settled = false;
@@ -370,6 +384,7 @@ Journal</textarea>
                 this.winnerText.innerText = winner;
                 this.winnerAnnouncement.style.opacity = '1';
                 this.winnerAnnouncement.style.transform = 'translate(-50%, -50%) scale(1)';
+                this.winnerAnnouncement.style.pointerEvents = 'auto';
                 if (navigator.vibrate) navigator.vibrate(200);
             }
 
@@ -391,27 +406,30 @@ Journal</textarea>
                 });
 
                 const numBasins = this.options.length;
-                const isMobile = window.innerWidth <= 768;
-                const sidebarWidth = isMobile ? 0 : 320;
-                const playableWidth = this.canvas.width - sidebarWidth;
-                const startX = sidebarWidth;
-                const basinWidth = playableWidth / numBasins;
+                const basinWidth = this.canvas.width / numBasins;
 
                 this.ctx.textAlign = 'center';
-                this.ctx.font = isMobile ? '8px Inter' : '10px Inter';
+                this.ctx.font = '10px Inter';
                 this.ctx.letterSpacing = '1px';
 
                 this.options.forEach((option, i) => {
-                    const x = startX + i * basinWidth + basinWidth / 2;
+                    const x = i * basinWidth + basinWidth / 2;
                     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                     let displayOption = option.toUpperCase();
-                    if (this.ctx.measureText(displayOption).width > basinWidth - 8) {
-                        displayOption = displayOption.substring(0, Math.floor(basinWidth/6)) + '..';
+                    if (this.ctx.measureText(displayOption).width > basinWidth - 10) {
+                        displayOption = displayOption.substring(0, Math.floor(basinWidth/8)) + '..';
                     }
                     this.ctx.fillText(displayOption, x, this.canvas.height - 25);
                 });
 
                 this.marbles.forEach(marble => {
+                    // Safety check if marble falls out of world
+                    if (marble.position.y > this.canvas.height + 100) {
+                        Composite.remove(this.engine.world, marble);
+                        this.marbles = this.marbles.filter(m => m !== marble);
+                        return;
+                    }
+
                     marble.trail.push({ x: marble.position.x, y: marble.position.y });
                     if (marble.trail.length > 15) marble.trail.shift();
 
