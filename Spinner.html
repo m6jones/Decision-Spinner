@@ -560,7 +560,7 @@
             }
 
             // Center Cap - Metallic Look
-            const capRadius = 40;
+            const capRadius = 25;
             const capGrad = ctx.createRadialGradient(centerX - 10, centerY - 10, 5, centerX, centerY, capRadius);
             capGrad.addColorStop(0, '#ffffff');
             capGrad.addColorStop(0.3, '#e2e8f0');
@@ -661,7 +661,10 @@
             
             confettiActive = true;
             drawConfetti();
-            setTimeout(() => { confettiActive = false; }, 5000);
+            setTimeout(() => { 
+                confettiActive = false; 
+                confettiCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            }, 5000);
         }
 
         function determineWinner() {

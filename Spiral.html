@@ -26,7 +26,7 @@
             z-index: 1;
         }
         .breathe {
-            animation: breathe 14s ease-in-out infinite;
+            animation: breathe 24s ease-in-out infinite;
         }
         @keyframes breathe {
             0%, 100% { transform: scale(1); opacity: 0.1; }
@@ -198,8 +198,8 @@
         window.addEventListener('touchend', stopDrawing);
 
         // Breathing cycle state
-        const phraseDuration = 5000; // 5 seconds per phrase
-        const pauseDuration = 2000;  // 2 seconds for hold/pause
+        const phraseDuration = 8000; // 8 seconds per phrase
+        const pauseDuration = 4000;  // 4 seconds for hold/pause
         const totalCycle = (phraseDuration + pauseDuration) * 2;
         
         const breathingPhrases = ["Breathe in", "Hold", "Breathe out", "Pause"];
@@ -254,7 +254,7 @@
             const centerX = width / 2;
             const centerY = height / 2;
             const b = Math.min(width, height) * 0.025; // Adjusted spacing
-            const rotations = 3.5; // Fewer rotations = slower movement
+            const rotations = 2.5; // Fewer rotations = slower movement
             
             // Draw faded spiral path
             ctx.beginPath();
