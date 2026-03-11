@@ -6,11 +6,16 @@
     <title>Rainbow Breath - Calm Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --bg-scale: 100%;
+            --bg-intensity: 10%;
+        }
         body {
             margin: 0;
             overflow: hidden;
-            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 var(--bg-scale));
             touch-action: none;
+            transition: background 0.5s ease-out;
         }
         canvas {
             display: block;
@@ -18,33 +23,37 @@
             position: fixed;
             top: 0;
             left: 0;
-            z-index: 0;
+            z-index: 1;
         }
         .breathe {
             animation: breathe 8s ease-in-out infinite;
         }
         @keyframes breathe {
-            0%, 100% { transform: scale(1); opacity: 0.3; }
-            50% { transform: scale(1.1); opacity: 0.6; }
+            0%, 100% { transform: scale(1); opacity: 0.2; }
+            50% { transform: scale(1.1); opacity: 0.5; }
+        }
+        #instruction {
+            transition: opacity 2s ease-in-out, transform 2s ease-in-out;
+            text-shadow: 0 0 20px rgba(129, 140, 248, 0.3);
         }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen cursor-crosshair">
 
-    <div class="fixed top-6 left-6 z-20 flex items-center gap-4">
+    <div class="fixed top-6 left-6 z-30 flex items-center gap-4">
         <a href="Spinner.html" class="px-4 py-2 bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/80 rounded-full border border-white/10 transition-all text-sm font-medium backdrop-blur-sm">
             ← Back to Spinner
         </a>
     </div>
 
-    <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
-        <div id="instruction" class="text-indigo-200/40 text-2xl md:text-3xl font-light tracking-widest text-center transition-opacity duration-1000 uppercase">
+    <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-20">
+        <div id="instruction" class="text-indigo-200/60 text-2xl md:text-3xl font-light tracking-widest text-center uppercase opacity-0">
             Trace the spiral slowly
         </div>
     </div>
 
     <!-- Breathing Guide Circle -->
-    <div class="fixed inset-0 flex items-center justify-center pointer-events-none">
+    <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
         <div class="w-64 h-64 md:w-96 md:h-96 rounded-full border border-indigo-500/10 breathe"></div>
         <div class="absolute w-48 h-48 md:w-72 md:h-72 rounded-full border border-indigo-400/5 breathe" style="animation-delay: 1s;"></div>
     </div>
@@ -58,12 +67,43 @@
 
         let width, height;
         let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
+        let lastX = 0, lastY = 0;
+        let controlX = 0, controlY = 0;
         let hue = 0;
         let points = [];
-        const maxPoints = 3000;
-        const fadeSpeed = 0.005;
+        const maxPoints = 2000;
+        const fadeSpeed = 0.006;
+
+        // Starfield
+        class Star {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 1.5;
+                this.opacity = Math.random();
+                this.speed = Math.random() * 0.05 + 0.02;
+                this.twinkle = Math.random() * 0.01;
+            }
+            update() {
+                this.y += this.speed;
+                this.opacity += this.twinkle;
+                if (this.opacity > 1 || this.opacity < 0.2) this.twinkle *= -1;
+                if (this.y > height) {
+                    this.y = 0;
+                    this.x = Math.random() * width;
+                }
+            }
+            draw() {
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        const stars = [];
 
         function resize() {
             width = window.innerWidth;
@@ -73,19 +113,18 @@
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
             canvas.style.width = width + 'px';
             canvas.style.height = height + 'px';
+            
+            stars.length = 0;
+            for (let i = 0; i < 200; i++) stars.push(new Star());
         }
 
         window.addEventListener('resize', resize);
         resize();
 
         function getPos(e) {
-            const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            return { x: clientX, y: clientY };
         }
 
         function startDrawing(e) {
@@ -93,7 +132,11 @@
             const pos = getPos(e);
             lastX = pos.x;
             lastY = pos.y;
-            instruction.style.opacity = '0';
+            controlX = pos.x;
+            controlY = pos.y;
+            if (instruction.textContent.includes('Trace')) {
+                instruction.style.opacity = '0';
+            }
         }
 
         function stopDrawing() {
@@ -104,69 +147,81 @@
             if (!isDrawing) return;
             const pos = getPos(e);
             const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
-            if (dist < 2) return;
+            if (dist < 3) return;
 
-            hue = (hue + dist * 0.5) % 360;
+            hue = (hue + dist * 0.4) % 360;
+            const midX = (lastX + pos.x) / 2;
+            const midY = (lastY + pos.y) / 2;
 
             const point = {
-                x1: lastX,
-                y1: lastY,
-                x2: pos.x,
-                y2: pos.y,
-                color: `hsla(${hue}, 80%, 60%, 1)`,
+                x1: lastX, y1: lastY,
+                cpX: controlX, cpY: controlY,
+                x2: midX, y2: midY,
+                color: `hsla(${hue}, 80%, 65%, 1)`,
                 opacity: 1,
-                width: 18
+                width: Math.min(25, Math.max(8, 30 - dist * 0.5))
             };
 
             points.push(point);
             if (points.length > maxPoints) points.shift();
 
-            lastX = pos.x;
-            lastY = pos.y;
+            controlX = pos.x;
+            controlY = pos.y;
+            lastX = midX;
+            lastY = midY;
         }
 
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         window.addEventListener('mouseup', stopDrawing);
-
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            startDrawing(e);
-        }, { passive: false });
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            draw(e);
-        }, { passive: false });
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
         window.addEventListener('touchend', stopDrawing);
 
+        // Breathing cycle state
+        let breathingFactor = 0; // 0 to 1
+        let breathingDirection = 1;
         const breathingPhrases = ["Breathe in...", "Hold...", "Breathe out...", "Pause..."];
         let phraseIndex = 0;
-        
-        setInterval(() => {
-            if (instruction.style.opacity === '0') {
-                instruction.textContent = breathingPhrases[phraseIndex];
-                instruction.style.opacity = '0.4';
-                setTimeout(() => {
-                    instruction.style.opacity = '0';
-                }, 4000);
-                phraseIndex = (phraseIndex + 1) % breathingPhrases.length;
-            }
-        }, 8000);
 
-        function drawGuide() {
+        function updateBreathing(time) {
+            // Cycle every 16s (4s per phrase approx)
+            const cycle = (time / 8000) % 2; // 0 to 2
+            const factor = Math.sin((time / 8000) * Math.PI - Math.PI / 2) * 0.5 + 0.5;
+            
+            // Update Background
+            const bgScale = 100 + factor * 50;
+            document.documentElement.style.setProperty('--bg-scale', `${bgScale}%`);
+            
+            // Update Phrases
+            const currentPhraseIndex = Math.floor((time / 4000) % 4);
+            if (currentPhraseIndex !== phraseIndex) {
+                phraseIndex = currentPhraseIndex;
+                instruction.style.opacity = '0';
+                instruction.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    instruction.textContent = breathingPhrases[phraseIndex];
+                    instruction.style.opacity = '0.6';
+                    instruction.style.transform = 'translateY(0)';
+                }, 1000);
+            }
+
+            return factor;
+        }
+
+        function drawGuide(factor) {
             const centerX = width / 2;
             const centerY = height / 2;
-            const a = 0;
             const b = Math.min(width, height) * 0.015;
             const rotations = 6;
             
             ctx.beginPath();
             ctx.setLineDash([5, 15]);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(129, 140, 248, 0.15)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.1)';
             
             for (let theta = 0; theta < Math.PI * 2 * rotations; theta += 0.1) {
-                const r = a + b * theta;
+                const r = b * theta;
                 const x = centerX + r * Math.cos(theta);
                 const y = centerY + r * Math.sin(theta);
                 if (theta === 0) ctx.moveTo(x, y);
@@ -174,11 +229,42 @@
             }
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Guide Orb
+            // Map factor to spiral position
+            const orbTheta = factor * Math.PI * 2 * rotations;
+            const orbR = b * orbTheta;
+            const orbX = centerX + orbR * Math.cos(orbTheta);
+            const orbY = centerY + orbR * Math.sin(orbTheta);
+
+            const orbGrad = ctx.createRadialGradient(orbX, orbY, 0, orbX, orbY, 15);
+            orbGrad.addColorStop(0, 'rgba(129, 140, 248, 0.8)');
+            orbGrad.addColorStop(1, 'rgba(129, 140, 248, 0)');
+            
+            ctx.fillStyle = orbGrad;
+            ctx.beginPath();
+            ctx.arc(orbX, orbY, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Core
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(orbX, orbY, 2, 0, Math.PI * 2);
+            ctx.fill();
         }
 
-        function animate() {
+        function animate(time) {
             ctx.clearRect(0, 0, width, height);
-            drawGuide();
+            
+            // Stars
+            stars.forEach(star => {
+                star.update();
+                star.draw();
+            });
+
+            const factor = updateBreathing(time);
+            drawGuide(factor);
+
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
                 p.opacity -= fadeSpeed;
@@ -187,20 +273,36 @@
                     i--;
                     continue;
                 }
+
+                ctx.save();
+                ctx.globalAlpha = p.opacity;
                 ctx.beginPath();
                 ctx.moveTo(p.x1, p.y1);
-                ctx.lineTo(p.x2, p.y2);
-                ctx.strokeStyle = p.color.replace('1)', `${p.opacity})`);
+                ctx.quadraticCurveTo(p.cpX, p.cpY, p.x2, p.y2);
+                ctx.strokeStyle = p.color;
                 ctx.lineWidth = p.width;
                 ctx.lineCap = 'round';
-                ctx.shadowBlur = 15 * p.opacity;
-                ctx.shadowColor = p.color;
+                
+                if (p.opacity > 0.2) {
+                    ctx.shadowBlur = 10 * p.opacity;
+                    ctx.shadowColor = p.color;
+                }
+                
                 ctx.stroke();
+                ctx.restore();
             }
             requestAnimationFrame(animate);
         }
 
-        animate();
+        // Initial phrase
+        setTimeout(() => {
+            if (instruction.style.opacity === '0') {
+                instruction.textContent = "Trace the spiral slowly";
+                instruction.style.opacity = '0.4';
+            }
+        }, 1000);
+
+        requestAnimationFrame(animate);
     </script>
 </body>
 </html>
