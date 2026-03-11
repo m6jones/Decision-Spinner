@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rainbow Breath - Calm Mode</title>
+    <title>Rainbow Breath - Meditative Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -26,15 +26,16 @@
             z-index: 1;
         }
         .breathe {
-            animation: breathe 8s ease-in-out infinite;
+            animation: breathe 14s ease-in-out infinite;
         }
         @keyframes breathe {
-            0%, 100% { transform: scale(1); opacity: 0.2; }
-            50% { transform: scale(1.1); opacity: 0.5; }
+            0%, 100% { transform: scale(1); opacity: 0.1; }
+            35%, 50% { transform: scale(1.15); opacity: 0.4; }
+            85% { transform: scale(1); opacity: 0.1; }
         }
         #instruction {
-            transition: opacity 2s ease-in-out, transform 2s ease-in-out;
-            text-shadow: 0 0 20px rgba(129, 140, 248, 0.3);
+            transition: opacity 1.5s ease-in-out, transform 1.5s ease-in-out;
+            text-shadow: 0 0 20px rgba(129, 140, 248, 0.5);
         }
     </style>
 </head>
@@ -47,15 +48,15 @@
     </div>
 
     <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div id="instruction" class="text-indigo-200/60 text-2xl md:text-3xl font-light tracking-widest text-center uppercase opacity-0">
+        <div id="instruction" class="text-indigo-200/80 text-2xl md:text-4xl font-extralight tracking-[0.2em] text-center uppercase opacity-0">
             Trace the spiral slowly
         </div>
     </div>
 
-    <!-- Breathing Guide Circle -->
+    <!-- Breathing Guide Circles -->
     <div class="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
         <div class="w-64 h-64 md:w-96 md:h-96 rounded-full border border-indigo-500/10 breathe"></div>
-        <div class="absolute w-48 h-48 md:w-72 md:h-72 rounded-full border border-indigo-400/5 breathe" style="animation-delay: 1s;"></div>
+        <div class="absolute w-48 h-48 md:w-72 md:h-72 rounded-full border border-indigo-400/5 breathe" style="animation-delay: 1.5s;"></div>
     </div>
 
     <canvas id="spiralCanvas"></canvas>
@@ -67,12 +68,12 @@
 
         let width, height;
         let isDrawing = false;
-        let lastX = 0, lastY = 0;
-        let controlX = 0, controlY = 0;
         let hue = 0;
         let points = [];
-        const maxPoints = 2000;
-        const fadeSpeed = 0.006;
+        let rawPoints = [];
+        const maxPoints = 800;
+        const fadeSpeed = 0.005;
+        let lastMoveTime = Date.now();
 
         // Starfield
         class Star {
@@ -82,22 +83,22 @@
             reset() {
                 this.x = Math.random() * width;
                 this.y = Math.random() * height;
-                this.size = Math.random() * 1.5;
+                this.size = Math.random() * 1.2;
                 this.opacity = Math.random();
-                this.speed = Math.random() * 0.05 + 0.02;
-                this.twinkle = Math.random() * 0.01;
+                this.speed = Math.random() * 0.03 + 0.01;
+                this.twinkle = Math.random() * 0.005;
             }
             update() {
                 this.y += this.speed;
                 this.opacity += this.twinkle;
-                if (this.opacity > 1 || this.opacity < 0.2) this.twinkle *= -1;
+                if (this.opacity > 1 || this.opacity < 0.1) this.twinkle *= -1;
                 if (this.y > height) {
                     this.y = 0;
                     this.x = Math.random() * width;
                 }
             }
             draw() {
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.fillStyle = `rgba(200, 220, 255, ${this.opacity})`;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
@@ -115,7 +116,7 @@
             canvas.style.height = height + 'px';
             
             stars.length = 0;
-            for (let i = 0; i < 200; i++) stars.push(new Star());
+            for (let i = 0; i < 150; i++) stars.push(new Star());
         }
 
         window.addEventListener('resize', resize);
@@ -129,11 +130,9 @@
 
         function startDrawing(e) {
             isDrawing = true;
+            rawPoints = [];
             const pos = getPos(e);
-            lastX = pos.x;
-            lastY = pos.y;
-            controlX = pos.x;
-            controlY = pos.y;
+            rawPoints.push({ x: pos.x, y: pos.y, v: 0 });
             if (instruction.textContent.includes('Trace')) {
                 instruction.style.opacity = '0';
             }
@@ -141,34 +140,54 @@
 
         function stopDrawing() {
             isDrawing = false;
+            rawPoints = [];
         }
 
         function draw(e) {
             if (!isDrawing) return;
             const pos = getPos(e);
-            const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
-            if (dist < 3) return;
+            const lastRaw = rawPoints[rawPoints.length - 1];
+            const dist = Math.hypot(pos.x - lastRaw.x, pos.y - lastRaw.y);
+            
+            if (dist < 4) return;
 
-            hue = (hue + dist * 0.4) % 360;
-            const midX = (lastX + pos.x) / 2;
-            const midY = (lastY + pos.y) / 2;
+            const now = Date.now();
+            const dt = now - lastMoveTime;
+            const velocity = dist / Math.max(1, dt);
+            lastMoveTime = now;
 
-            const point = {
-                x1: lastX, y1: lastY,
-                cpX: controlX, cpY: controlY,
-                x2: midX, y2: midY,
-                color: `hsla(${hue}, 80%, 65%, 1)`,
-                opacity: 1,
-                width: Math.min(25, Math.max(8, 30 - dist * 0.5))
-            };
+            rawPoints.push({ x: pos.x, y: pos.y, v: velocity });
 
-            points.push(point);
-            if (points.length > maxPoints) points.shift();
+            if (rawPoints.length >= 4) {
+                const p0 = rawPoints[rawPoints.length - 4];
+                const p1 = rawPoints[rawPoints.length - 3];
+                const p2 = rawPoints[rawPoints.length - 2];
+                const p3 = rawPoints[rawPoints.length - 1];
 
-            controlX = pos.x;
-            controlY = pos.y;
-            lastX = midX;
-            lastY = midY;
+                // Catmull-Rom to Cubic Bezier conversion for perfect smoothness
+                const cp1x = p1.x + (p2.x - p0.x) / 6;
+                const cp1y = p1.y + (p2.y - p0.y) / 6;
+                const cp2x = p2.x - (p3.x - p1.x) / 6;
+                const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+                hue = (hue + dist * 0.3) % 360;
+                
+                // Variable width: Taper based on velocity and acceleration
+                // Organic brush feel: thinner when fast, thicker when slow
+                const targetWidth = Math.min(18, Math.max(5, 22 - velocity * 4));
+                
+                points.push({
+                    p1: {x: p1.x, y: p1.y},
+                    cp1: {x: cp1x, y: cp1y},
+                    cp2: {x: cp2x, y: cp2y},
+                    p2: {x: p2.x, y: p2.y},
+                    color: `hsla(${hue}, 85%, 65%, 1)`,
+                    opacity: 1,
+                    width: targetWidth
+                });
+
+                if (points.length > maxPoints) points.shift();
+            }
         }
 
         canvas.addEventListener('mousedown', startDrawing);
@@ -179,48 +198,71 @@
         window.addEventListener('touchend', stopDrawing);
 
         // Breathing cycle state
-        let breathingFactor = 0; // 0 to 1
-        let breathingDirection = 1;
-        const breathingPhrases = ["Breathe in...", "Hold...", "Breathe out...", "Pause..."];
-        let phraseIndex = 0;
+        const phraseDuration = 5000; // 5 seconds per phrase
+        const pauseDuration = 2000;  // 2 seconds for hold/pause
+        const totalCycle = (phraseDuration + pauseDuration) * 2;
+        
+        const breathingPhrases = ["Breathe in", "Hold", "Breathe out", "Pause"];
+        let phraseIndex = -1;
 
-        function updateBreathing(time) {
-            // Cycle every 16s (4s per phrase approx)
-            const cycle = (time / 8000) % 2; // 0 to 2
-            const factor = Math.sin((time / 8000) * Math.PI - Math.PI / 2) * 0.5 + 0.5;
+        function getBreathingFactor(time) {
+            const t = time % totalCycle;
             
-            // Update Background
-            const bgScale = 100 + factor * 50;
-            document.documentElement.style.setProperty('--bg-scale', `${bgScale}%`);
+            // Phase timings
+            const t1 = phraseDuration;
+            const t2 = phraseDuration + pauseDuration;
+            const t3 = phraseDuration * 2 + pauseDuration;
             
-            // Update Phrases
-            const currentPhraseIndex = Math.floor((time / 4000) % 4);
-            if (currentPhraseIndex !== phraseIndex) {
-                phraseIndex = currentPhraseIndex;
-                instruction.style.opacity = '0';
-                instruction.style.transform = 'translateY(10px)';
-                setTimeout(() => {
-                    instruction.textContent = breathingPhrases[phraseIndex];
-                    instruction.style.opacity = '0.6';
-                    instruction.style.transform = 'translateY(0)';
-                }, 1000);
+            let factor = 0;
+            let currentPhrase = 0;
+
+            const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+
+            if (t < t1) {
+                factor = ease(t / phraseDuration);
+                currentPhrase = 0;
+            } else if (t < t2) {
+                factor = 1;
+                currentPhrase = 1;
+            } else if (t < t3) {
+                factor = 1 - ease((t - t2) / phraseDuration);
+                currentPhrase = 2;
+            } else {
+                factor = 0;
+                currentPhrase = 3;
+            }
+
+            if (currentPhrase !== phraseIndex) {
+                phraseIndex = currentPhrase;
+                updatePhraseUI(breathingPhrases[phraseIndex]);
             }
 
             return factor;
         }
 
+        function updatePhraseUI(text) {
+            instruction.style.opacity = '0';
+            instruction.style.transform = 'translateY(10px)';
+            setTimeout(() => {
+                instruction.textContent = text;
+                instruction.style.opacity = '0.7';
+                instruction.style.transform = 'translateY(0)';
+            }, 800);
+        }
+
         function drawGuide(factor) {
             const centerX = width / 2;
             const centerY = height / 2;
-            const b = Math.min(width, height) * 0.015;
-            const rotations = 6;
+            const b = Math.min(width, height) * 0.025; // Adjusted spacing
+            const rotations = 3.5; // Fewer rotations = slower movement
             
+            // Draw faded spiral path
             ctx.beginPath();
-            ctx.setLineDash([5, 15]);
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = 'rgba(129, 140, 248, 0.1)';
+            ctx.setLineDash([2, 10]);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.15)';
             
-            for (let theta = 0; theta < Math.PI * 2 * rotations; theta += 0.1) {
+            for (let theta = 0; theta < Math.PI * 2 * rotations; theta += 0.05) {
                 const r = b * theta;
                 const x = centerX + r * Math.cos(theta);
                 const y = centerY + r * Math.sin(theta);
@@ -231,26 +273,35 @@
             ctx.setLineDash([]);
 
             // Guide Orb
-            // Map factor to spiral position
             const orbTheta = factor * Math.PI * 2 * rotations;
             const orbR = b * orbTheta;
             const orbX = centerX + orbR * Math.cos(orbTheta);
             const orbY = centerY + orbR * Math.sin(orbTheta);
 
-            const orbGrad = ctx.createRadialGradient(orbX, orbY, 0, orbX, orbY, 15);
-            orbGrad.addColorStop(0, 'rgba(129, 140, 248, 0.8)');
+            // Large soft glow
+            const orbGrad = ctx.createRadialGradient(orbX, orbY, 0, orbX, orbY, 25);
+            orbGrad.addColorStop(0, 'rgba(129, 140, 248, 0.4)');
+            orbGrad.addColorStop(0.5, 'rgba(129, 140, 248, 0.1)');
             orbGrad.addColorStop(1, 'rgba(129, 140, 248, 0)');
             
             ctx.fillStyle = orbGrad;
             ctx.beginPath();
-            ctx.arc(orbX, orbY, 15, 0, Math.PI * 2);
+            ctx.arc(orbX, orbY, 25, 0, Math.PI * 2);
             ctx.fill();
             
-            // Core
-            ctx.fillStyle = 'white';
+            // Pulse effect
+            const pulse = Math.sin(Date.now() / 400) * 2 + 5;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.beginPath();
-            ctx.arc(orbX, orbY, 2, 0, Math.PI * 2);
+            ctx.arc(orbX, orbY, pulse, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Outer ring
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(orbX, orbY, pulse + 4, 0, Math.PI * 2);
+            ctx.stroke();
         }
 
         function animate(time) {
@@ -262,9 +313,10 @@
                 star.draw();
             });
 
-            const factor = updateBreathing(time);
+            const factor = getBreathingFactor(time);
             drawGuide(factor);
 
+            // Draw Neon Trace
             for (let i = 0; i < points.length; i++) {
                 const p = points[i];
                 p.opacity -= fadeSpeed;
@@ -275,26 +327,37 @@
                 }
 
                 ctx.save();
-                ctx.globalAlpha = p.opacity;
+                
+                // Set composite for neon overlap effect
+                ctx.globalCompositeOperation = 'lighter';
+                
                 ctx.beginPath();
-                ctx.moveTo(p.x1, p.y1);
-                ctx.quadraticCurveTo(p.cpX, p.cpY, p.x2, p.y2);
+                ctx.moveTo(p.p1.x, p.p1.y);
+                ctx.bezierCurveTo(p.cp1.x, p.cp1.y, p.cp2.x, p.cp2.y, p.p2.x, p.p2.y);
+                
+                // 1. Wide Background Glow
                 ctx.strokeStyle = p.color;
-                ctx.lineWidth = p.width;
-                ctx.lineCap = 'round';
-                
-                if (p.opacity > 0.2) {
-                    ctx.shadowBlur = 10 * p.opacity;
-                    ctx.shadowColor = p.color;
-                }
-                
+                ctx.lineWidth = p.width * 2.2;
+                ctx.globalAlpha = p.opacity * 0.15;
                 ctx.stroke();
+
+                // 2. Main Color
+                ctx.lineWidth = p.width;
+                ctx.globalAlpha = p.opacity * 0.8;
+                ctx.stroke();
+
+                // 3. Bright Inner Core
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = p.width * 0.25;
+                ctx.globalAlpha = p.opacity * 0.6;
+                ctx.stroke();
+
                 ctx.restore();
             }
             requestAnimationFrame(animate);
         }
 
-        // Initial phrase
+        // Start
         setTimeout(() => {
             if (instruction.style.opacity === '0') {
                 instruction.textContent = "Trace the spiral slowly";
