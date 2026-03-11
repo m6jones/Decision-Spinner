@@ -213,12 +213,23 @@ Journal</textarea>
             initEvents() {
                 window.addEventListener('resize', () => this.resize());
                 
-                this.dropBtn.addEventListener('click', () => {
+                // Drop on click/tap anywhere on canvas
+                this.canvas.addEventListener('click', (e) => {
+                    // Don't drop if clicking sidebar or announcement
+                    if (this.sidebar.classList.contains('collapsed') || e.clientX > 320) {
+                         this.dropAt(e.clientX);
+                         if (window.innerWidth <= 768) this.toggleSidebar(false);
+                    }
+                });
+
+                this.dropBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     this.dropMarble();
                     this.toggleSidebar(false);
                 });
 
-                this.menuToggle.addEventListener('click', () => {
+                this.menuToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const isCollapsed = this.sidebar.classList.contains('collapsed');
                     this.toggleSidebar(isCollapsed);
                 });
@@ -228,7 +239,8 @@ Journal</textarea>
                     this.createBoard();
                 });
 
-                this.resetBtn.addEventListener('click', () => {
+                this.resetBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     this.winnerAnnouncement.style.opacity = '0';
                     this.winnerAnnouncement.style.transform = 'translate(-50%, -50%) scale(0.95)';
                     this.winnerAnnouncement.style.pointerEvents = 'none';
@@ -301,33 +313,26 @@ Journal</textarea>
                 const height = this.canvas.height;
                 const isMobile = width < 768;
                 
-                // Playable area is full screen now
                 const playableWidth = width;
                 const startX = 0;
 
-                // Dynamic Irregular Grid
+                // Classic Offset Grid
+                const rows = isMobile ? 9 : 11;
                 const cols = isMobile ? 8 : 12;
-                const rows = isMobile ? 8 : 10;
                 const spacingX = playableWidth / (cols + 1);
                 const spacingY = (height * 0.6) / rows;
 
                 for (let r = 0; r < rows; r++) {
                     const isEven = r % 2 === 0;
-                    const rowOffset = isEven ? spacingX * 0.5 : 0;
                     const rowCols = isEven ? cols : cols + 1;
+                    const rowWidth = (rowCols - 1) * spacingX;
+                    const rowStartX = (playableWidth - rowWidth) / 2;
                     
                     for (let c = 0; c < rowCols; c++) {
-                        // Add subtle random jitter to break perfect alignment
-                        const jitterX = (Math.random() - 0.5) * (spacingX * 0.3);
-                        const jitterY = (Math.random() - 0.5) * (spacingY * 0.2);
+                        const x = rowStartX + c * spacingX;
+                        const y = 100 + r * spacingY;
                         
-                        const x = startX + rowOffset + (c + (isEven ? 0.5 : 0)) * spacingX + jitterX;
-                        const y = 100 + r * spacingY + jitterY;
-                        
-                        // Keep within bounds
-                        const safeX = Math.max(PEG_RADIUS * 2, Math.min(width - PEG_RADIUS * 2, x));
-                        
-                        const peg = Bodies.circle(safeX, y, PEG_RADIUS, {
+                        const peg = Bodies.circle(x, y, PEG_RADIUS, {
                             isStatic: true,
                             label: 'peg',
                             render: { fillStyle: '#ffffff' }
@@ -347,7 +352,7 @@ Journal</textarea>
                 const basinWidth = playableWidth / numBasins;
 
                 for (let i = 0; i < numBasins; i++) {
-                    const x = startX + i * basinWidth + basinWidth / 2;
+                    const x = i * basinWidth + basinWidth / 2;
                     const sensor = Bodies.rectangle(x, height - 10, basinWidth * 0.9, 40, {
                         isStatic: true, isSensor: true, label: 'sensor'
                     });
@@ -355,7 +360,7 @@ Journal</textarea>
                     this.sensors.push(sensor);
 
                     if (i > 0) {
-                        const divider = Bodies.rectangle(startX + i * basinWidth, height - 40, 2, 80, {
+                        const divider = Bodies.rectangle(i * basinWidth, height - 40, 2, 80, {
                             isStatic: true, render: { fillStyle: 'rgba(255,255,255,0.1)' }
                         });
                         this.walls.push(divider);
@@ -365,27 +370,21 @@ Journal</textarea>
                 Composite.add(this.engine.world, [...this.pegs, ...this.walls, ...this.sensors]);
             }
 
-            dropMarble() {
+            dropAt(x) {
                 if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-
-                const playableWidth = this.canvas.width;
-                // Ensure spawn is within bounds and hits pegs
-                const x = (Math.random() * 0.5 + 0.25) * playableWidth;
                 const y = -30;
-
                 const marble = Bodies.circle(x, y, MARBLE_RADIUS, {
-                    restitution: 0.6, 
-                    friction: 0.001, 
-                    label: 'marble',
-                    collisionFilter: {
-                        category: 0x0001
-                    }
+                    restitution: 0.6, friction: 0.001, label: 'marble'
                 });
                 marble.trail = [];
                 marble.settled = false;
-
                 this.marbles.push(marble);
                 Composite.add(this.engine.world, marble);
+            }
+
+            dropMarble() {
+                const x = (Math.random() * 0.4 + 0.3) * this.canvas.width;
+                this.dropAt(x);
             }
 
             announceWinner(index) {
